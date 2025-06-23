@@ -1,4 +1,5 @@
 # `qiskit-fun`
+---
 
 `grovers-euchre.ipynb`:  Grover's algorithm to find winning hands in Euchre. 
 
@@ -6,7 +7,7 @@
 
 - https://learning.quantum.ibm.com/tutorial/grovers-algorithm
 
-### Building package `tweedledum`:
+#### Building package `tweedledum`:
 
 This package was not installable via PyPi for Apple Silicon.
 Build from source... 
@@ -18,3 +19,10 @@ make
 cd ..
 CMAKE_PREFIX_PATH=$(python3 -m pybind11 --cmakedir) pip wheel . -w dist
 ```
+---
+`mastermind-knuth.ipynb`:  Knuth's Mastermind solver
+`mastermind-grovers.ipynb`:  Grover's solver
+`mastermind-deutsch.ipynb`:  Deutsch inspired solver
+
+* https://carlek.hashnode.dev/mastermind-code-cracking-classic-and-quantum
+---
