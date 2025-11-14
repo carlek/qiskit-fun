@@ -1,6 +1,8 @@
 # `qiskit-fun`
----
 
+Code (IBM Qiskit) used in articles in my blog. 
+---
+## Grover's and Euchre
 `grovers-euchre.ipynb`:  Grover's algorithm to find winning hands in Euchre. 
 
 - https://carlek.hashnode.dev/quantum-search-and-euchre
@@ -20,9 +22,10 @@ cd ..
 CMAKE_PREFIX_PATH=$(python3 -m pybind11 --cmakedir) pip wheel . -w dist
 ```
 ---
-`mastermind-knuth.ipynb`:  Knuth's Mastermind solver
-`mastermind-grovers.ipynb`:  Grover's solver
-`mastermind-deutsch.ipynb`:  Deutsch inspired solver
+## MasterMind Solvers
+- `mastermind-knuth.ipynb`:  Knuth's Mastermind solver
+- `mastermind-grovers.ipynb`:  Grover's solver
+- `mastermind-deutsch.ipynb`:  Deutsch's-inspired solver
 
 * https://carlek.hashnode.dev/mastermind-code-cracking-classic-and-quantum
 ---
