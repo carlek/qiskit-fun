@@ -7,7 +7,7 @@ class ParamShiftGD(Observer):
     """Plain (stochastic) gradient-descent step using parameter-shift gradients.
 
     Each update() does exactly one optimization GD step.
-      - Observes (E, theta), computes grad via silent evaluations (notify=False),
+      - Observes (E, theta), fetching the gradient from evaluator.gradient_param_shift(...),
       - Optional gradient clipping and momentum are supported. 
       - set new parameters in evaluator.params
       - optional early-stop on small energy deltas
@@ -52,20 +52,6 @@ class ParamShiftGD(Observer):
         self._streak = 0
         self._vel: Optional[np.ndarray] = None
 
-    def _gradient_param_shift(self, theta: np.ndarray) -> np.ndarray:
-        """
-        ∂E/∂θ_i = 0.5 * [E(θ + s e_i) - E(θ - s e_i)], s = π/2
-        Valid for Ry/Rz-type param gates (the TwoLocal ansatz).
-        """
-        grad = np.zeros_like(theta, dtype=float)
-        for i in range(theta.size):
-            tp = theta.copy(); tp[i] += self.shift
-            tm = theta.copy(); tm[i] -= self.shift
-            Ep = self.evaluator.energy(tp, notify=False)
-            Em = self.evaluator.energy(tm, notify=False)
-            grad[i] = 0.5 * (Ep - Em)
-        return grad
-
     def update(self, energy: float, theta: np.ndarray, eval_count: int) -> None:
         # stop if epsilon or limit is reached.
         if self._last_energy is not None and abs(self._last_energy - energy) < self.epsilon:
@@ -76,8 +62,8 @@ class ParamShiftGD(Observer):
             self._streak = 0
         self._last_energy = energy
 
-        # Compute gradient silently
-        g = self._gradient_param_shift(theta)
+        # fetch gradient from evaluator
+        g = self.evaluator.gradient_param_shift(theta, self.shift)
 
         # Optional gradient clipping
         if self.grad_clip is not None:

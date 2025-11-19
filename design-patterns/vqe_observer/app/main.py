@@ -15,7 +15,7 @@ def main() -> None:
     theta0 = initial_params(ansatz, mode="zeros")  # zeros | random
 
     # create evaluator (subject)
-    evaluator = Evaluator(H=H, ansatz=ansatz, theta0=theta0, max_iters=1000 )
+    evaluator = Evaluator(H=H, ansatz=ansatz, theta0=theta0)
 
     # create optimizers (observers)
     # Gradient-descent optimizer using parameter shift
@@ -51,7 +51,7 @@ def main() -> None:
         evaluator.attach(o)
   
     # start subject, a loop which notifies all observers and may stop earlier (epsilon, limit)
-    evaluator.execute()
+    evaluator.execute(max_iters=200)
 
     # post-run reports and cleanup
     logger.dump()
