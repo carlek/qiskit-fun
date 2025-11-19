@@ -21,17 +21,14 @@ class VQEEvaluator(Subject):
         theta0: Initial parameter vector in the circuit's parameter order.
 
     Notes:
-        - Observers receive a single notification per iteration via
-          `notify=True`. Optimizers may perform additional *silent*
-          probes with notify=False (e.g., parameter-shift gradients) that do
-          not re-notify or increment the evaluation counter.
+        - Observers receive a single notification per iteration
+        - Optimizers use gradient_param_shift() to obtain values for iteration
     """
-    def __init__(self, H: SparsePauliOp, ansatz: QuantumCircuit, theta0: Sequence[float], max_iters: int) -> None:
+    def __init__(self, H: SparsePauliOp, ansatz: QuantumCircuit, theta0: Sequence[float]) -> None:
         super().__init__()
         self.H = H
         self.ansatz = ansatz
         self.params = np.asarray(theta0, dtype=float)
-        self.max_iters = max_iters
         self.eval_count = 0
         self.stop = False  # toggle for observers to stop evaluation
 
@@ -48,34 +45,55 @@ class VQEEvaluator(Subject):
         circ = self.ansatz.assign_parameters(theta)
         return Statevector.from_instruction(circ)
 
-    def energy(self, theta: Sequence[float], notify: bool = True) -> float:
-        """Compute exact ⟨H⟩ via statevector; optionally notify observers.
+    def _energy_raw(self, theta: Sequence[float]) -> float:
+        """Helper function to retrieve energy ⟨H⟩ from state vector"""
+        psi = self._statevector_from(theta)
+        return float(np.real(psi.expectation_value(self.H)))
+
+    def energy(self, theta: Sequence[float]) -> float:
+        """Compute exact ⟨H⟩ via statevector and notify observers
 
         Args:
             theta: Parameter vector at which to evaluate the energy.
-            notify: If `True`, increments `eval_count` and calls
-                `notify(energy, theta, eval_count)`; if `False`, performs a
-                *silent* probe (no notify, no counter increment).
 
         Returns:
-            float: The scalar energy expectation value.
+            float: The scalar energy expectation value
         """       
-        psi = self._statevector_from(theta)
-        E = float(np.real(psi.expectation_value(self.H)))
-        if notify:
-            self.eval_count += 1
-            self.notify(E, np.asarray(theta, dtype=float), self.eval_count)
+        E = self._energy_raw(theta)
+        self.eval_count += 1
+        self.notify(E, np.asarray(theta, dtype=float), self.eval_count)
         return E
 
-    def execute(self) -> None:
+    def gradient_param_shift(self, theta: Sequence[float], shift: float) -> np.ndarray:
+        """Compute ∂E/∂θ via the parameter-shift rule.
+
+        Uses: ∂E/∂θ_i = 0.5 * [E(θ + s e_i) - E(θ - s e_i)], s = shift
+
+        """
+        theta = np.asarray(theta, dtype=float)
+        grad = np.zeros_like(theta, dtype=float)
+
+        for i in range(theta.size):
+            tp = theta.copy()
+            tm = theta.copy()
+            tp[i] += shift
+            tm[i] -= shift
+
+            Ep = self._energy_raw(tp)
+            Em = self._energy_raw(tm)
+            grad[i] = 0.5 * (Ep - Em)
+
+        return grad
+
+    def execute(self, max_iters: int = 100) -> None:
         """Run the main VQE loop: one official evaluation per iteration.
         Args:
             max_iters: Maximum number of iterations (notifications). Early
                 termination occurs if an observer resets self.stop = True.
         """
         self.stop = False
-        for _ in range(self.max_iters):
+        for _ in range(max_iters):
             if self.stop:
                 break
             # Evaluate at current params and notify observers
-            _ = self.energy(self.params, notify=True)
+            _ = self.energy(self.params)

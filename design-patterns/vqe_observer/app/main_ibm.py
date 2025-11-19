@@ -16,9 +16,9 @@ def main() -> None:
     H, ansatz = build_2qubit_problem(pauli_str)
     theta0 = initial_params(ansatz, mode="zeros")  # zeros | random
 
-    service = QiskitRuntimeService(name="openplan")
+    service = QiskitRuntimeService(name="vqe-instance")
     backend_name = service.least_busy(operational=True, simulator=False)
-    instance_name="crn:v1:bluemix:public:quantum-computing:us-east:a/537cf98871e141e3a56e559ed3c0e8ec:6af15f94-3e51-4c6c-ad98-4a03ce30b8ab::",
+    instance_name="crn:v1:bluemix:public:quantum-computing:us-east:a/537cf98871e141e3a56e559ed3c0e8ec:f68bcf88-13f2-4e8d-b1ce-fb88efa9a44f::",
 
     print(f"Using IBM Quantum backend: {backend_name}")
     evaluator = Evaluator(
@@ -56,7 +56,7 @@ def main() -> None:
         limit=3,
     )
 
-    optimizer = optimizer_Adam  # or optimizer_GD
+    optimizer = optimizer_GD  # or optimizer_GD
 
     # create other observers and attach all
     logger = Logger()
@@ -68,7 +68,7 @@ def main() -> None:
 
     # Run optimization loop, may stop earlier (epsilon, limit))
     print("\nStarting VQE optimization...\n")
-    evaluator.execute(max_iters=3)
+    evaluator.execute(max_iters=20)
 
     # Post-run reports and cleanup
     logger.dump()

@@ -51,7 +51,7 @@ class IBMVQEEvaluator(Subject):
         self.eval_count = 0
         self.stop = False
 
-        # save backend services
+        # backend and runtime services
         self._service = service
         self._backend = backend
         self._instance = instance
@@ -60,6 +60,7 @@ class IBMVQEEvaluator(Subject):
         self._res_level = resilience_level
         self._seed = seed
         
+        # Estimator and ISA objects
         self._estimator: Estimator
         self._isa_ansatz: QuantumCircuit
         self._isa_obs: SparsePauliOp
@@ -76,12 +77,57 @@ class IBMVQEEvaluator(Subject):
         self._isa_ansatz = isa_psi
         self._isa_obs = isa_obs
 
-    def energy(self, theta: Sequence[float], notify: bool = True) -> float:
+    def _energy_raw(self, theta: Sequence[float]) -> float:
+        """Single-point expectation value via Estimator, no notifications."""
+        theta_list = np.asarray(theta, float).tolist()
+
+        job = self._estimator.run([
+            (self._isa_ansatz, self._isa_obs, [theta_list])
+        ])
+        pub = job.result()[0]
+        return float(pub.data.evs[0])
+
+    def gradient_param_shift(self, theta: Sequence[float], shift: float) -> np.ndarray:
+        """Parameter-shift gradient using a single batched Estimator.run call.
+
+        Uses: ∂E/∂θ_i = 0.5 * [E(θ + s e_i) - E(θ - s e_i)], s = shift.
+
+        With IBM hardware, batch up the pubs for the estimator: 
+          - build all shifted parameters in PUB list
+          - submit the list to estimator run
+          - return the gradient vector
+        """
+        theta = np.asarray(theta, float)
+        num_params = theta.size
+
+        pubs = []
+        # build all plus/minus shifts and call estimator run
+        for i in range(num_params):
+            tp = theta.copy()
+            tm = theta.copy()
+            tp[i] += shift
+            tm[i] -= shift
+            pubs.append((self._isa_ansatz, self._isa_obs, [tp.tolist()]))
+            pubs.append((self._isa_ansatz, self._isa_obs, [tm.tolist()]))
+
+        job = self._estimator.run(pubs)
+        results = job.result()
+
+        grad = np.zeros_like(theta, dtype=float)
+        idx = 0
+        for i in range(num_params):
+            Ep = float(results[idx].data.evs[0])
+            Em = float(results[idx + 1].data.evs[0])
+            grad[i] = 0.5 * (Ep - Em)
+            idx += 2
+
+        return grad
+
+    def energy(self, theta: Sequence[float]) -> float:
         """Compute ⟨H⟩ on IBM hardware/simulator; optionally notify observers.
 
         Args:
             theta: Parameter vector for the ansatz in the circuit's parameter order.
-            notify: If True, increments eval_count and notifies observers.
 
         Returns:
             float: Energy expectation value.
@@ -89,25 +135,15 @@ class IBMVQEEvaluator(Subject):
         Note:
             Assumes a live Estimator has been created by execute(...).
         """
-        job = self._estimator.run(
-            [ (self._isa_ansatz,
-               self._isa_obs, 
-               [np.asarray(theta, float).tolist()])
-            ]
-        )
-
-        pub= job.result()[0]
-        E = float(pub.data.evs[0])
-
-        if notify:
-            self.eval_count += 1
-            self.notify(E, np.asarray(theta, dtype=float), self.eval_count)
+        E = self._energy_raw(theta)  
+        self.eval_count += 1
+        self.notify(E, np.asarray(theta, dtype=float), self.eval_count)
         return E
 
-    def execute(self, max_iters: int = 200) -> None:
+    def execute(self, max_iters: int = 100) -> None:
         """Run the main VQE loop with a single long-running Estimator.
 
-        An Estimator are created once at the start of this
+        An Estimator is created once at the start of this
         method, reused for all evaluations, and closed automatically on exit.
 
         Args:
@@ -126,7 +162,7 @@ class IBMVQEEvaluator(Subject):
         for _ in range(max_iters):
             if self.stop:
                 break
-            _ = self.energy(self.params, notify=True)
+            _ = self.energy(self.params)
 
         # run is finished        
         self._estimator = None
@@ -138,4 +174,3 @@ class IBMVQEEvaluator(Subject):
                 print("Session backend:", self._backend)
         except Exception:
             pass
-        

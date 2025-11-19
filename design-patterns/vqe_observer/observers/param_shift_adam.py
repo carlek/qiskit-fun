@@ -36,9 +36,9 @@ class ParamShiftAdam(Observer):
             limit: Stop after limit iterations with energy change below epsilon.
         
         Note:
-            The gradient for each parameter θ is estimated:
-            `0.5·(E(θ + shift) - E(θ - shift))` via calls to
-            evaluator.energy(..., notify=False) to avoid re-notifying observers.
+            The gradient for each parameter θ:
+            `0.5·(E(θ + shift) - E(θ - shift))` is fetched from
+            evaluator helper function gradient_param_shift(theta, self.shift)
         """
         self.evaluator = evaluator
         self.lr, self.b1, self.b2 = lr, beta1, beta2
@@ -52,16 +52,6 @@ class ParamShiftAdam(Observer):
         self._last_energy: Optional[float] = None
         self._streak: int = 0
 
-    def _gradient_param_shift(self, theta: np.ndarray) -> np.ndarray:
-        grad = np.zeros_like(theta, dtype=float)
-        for i in range(theta.size):
-            tp = theta.copy(); tp[i] += self.shift
-            tm = theta.copy(); tm[i] -= self.shift
-            Ep = self.evaluator.energy(tp, notify=False)
-            Em = self.evaluator.energy(tm, notify=False)
-            grad[i] = 0.5 * (Ep - Em)
-        return grad
-
     def update(self, energy: float, theta: np.ndarray, eval_count: int) -> None:
         # Early stop based on energy improvement
         if self._last_energy is not None and abs(self._last_energy - energy) < self.epsilon:
@@ -72,8 +62,8 @@ class ParamShiftAdam(Observer):
             self._streak = 0
         self._last_energy = energy
 
-        # Compute gradient (silent)
-        g = self._gradient_param_shift(theta)
+        # fetch gradient from evaluator
+        g = self.evaluator.gradient_param_shift(theta, self.shift)
 
         # Lazy init moments
         if self.m is None:
