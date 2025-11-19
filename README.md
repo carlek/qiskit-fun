@@ -29,3 +29,8 @@ CMAKE_PREFIX_PATH=$(python3 -m pybind11 --cmakedir) pip wheel . -w dist
 
 * https://carlek.hashnode.dev/mastermind-code-cracking-classic-and-quantum
 ---
+
+## *WIP*: Observer Pattern for Variational Quantum Eigensolver
+- `design-patterns/vqe_observer`
+* https://hashnode.com/preview/6859a39ce2102dc2e211dfe6
+---
